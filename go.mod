@@ -1,0 +1,16 @@
+module github.com/KirillMironov/beaver
+
+go 1.20
+
+require (
+	go.uber.org/fx v1.19.2
+	golang.org/x/exp v0.0.0-20230224173230-c95f2b4c22f2
+)
+
+require (
+	go.uber.org/atomic v1.7.0 // indirect
+	go.uber.org/dig v1.16.1 // indirect
+	go.uber.org/multierr v1.6.0 // indirect
+	go.uber.org/zap v1.23.0 // indirect
+	golang.org/x/sys v0.1.0 // indirect
+)
