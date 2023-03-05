@@ -17,5 +17,6 @@ func options() fx.Option {
 			log.New,
 			auth.NewService,
 		),
+		fx.NopLogger,
 	)
 }

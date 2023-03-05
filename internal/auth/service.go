@@ -1,10 +1,7 @@
 package auth
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"encoding/hex"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -13,12 +10,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/KirillMironov/beaver/pkg/aes"
 	"github.com/KirillMironov/beaver/pkg/log"
 )
 
 const (
-	beaverKeyFile = "beaver.key"
-	message       = "beaver"
+	beaverFilename = "beaver.key"
+	secretMessage  = "beaver"
 )
 
 type Service struct {
@@ -40,18 +38,27 @@ func NewService(dataDir string, logger log.Logger) (*Service, error) {
 		return nil, err
 	}
 
-	file, err := os.Create(filepath.Join(dataDir, beaverKeyFile))
+	file, err := os.Create(filepath.Join(dataDir, beaverFilename))
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
 
-	secretKey, err := writeSecretKey(file)
+	key, err := aes.GenerateKey(aes.KeyLength)
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Infof("secret key: %s", secretKey)
+	ciphertext, err := aes.Encrypt([]byte(secretMessage), key)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err = file.Write(ciphertext); err != nil {
+		return nil, err
+	}
+
+	logger.Infof("secret key: %s", key)
 
 	return &Service{
 		dataDir: dataDir,
@@ -59,8 +66,8 @@ func NewService(dataDir string, logger log.Logger) (*Service, error) {
 	}, nil
 }
 
-func (s Service) Create(passphrase, secretKey string) (User, error) {
-	if err := s.validateSecretKey(secretKey); err != nil {
+func (s Service) Create(passphrase, key string) (User, error) {
+	if err := s.validateKey(key); err != nil {
 		return User{}, err
 	}
 
@@ -75,66 +82,26 @@ func (s Service) Create(passphrase, secretKey string) (User, error) {
 	return user, nil
 }
 
-func (s Service) validateSecretKey(key string) error {
-	file, err := os.Open(filepath.Join(s.dataDir, beaverKeyFile))
+func (s Service) validateKey(key string) error {
+	file, err := os.Open(filepath.Join(s.dataDir, beaverFilename))
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	secretKey, err := io.ReadAll(file)
+	fileCiphertext, err := io.ReadAll(file)
 	if err != nil {
 		return err
 	}
 
-	data, err := encrypt([]byte(message), []byte(key))
+	ciphertext, err := aes.Encrypt([]byte(secretMessage), []byte(key))
 	if err != nil {
 		return err
 	}
 
-	if data != string(secretKey) {
+	if !bytes.Equal(fileCiphertext, ciphertext) {
 		return errors.New("invalid secret key")
 	}
 
 	return nil
-}
-
-func writeSecretKey(dst io.Writer) (string, error) {
-	key := make([]byte, 32)
-	plaintext := []byte(message)
-
-	if _, err := rand.Read(key); err != nil {
-		return "", err
-	}
-
-	data, err := encrypt(plaintext, key)
-	if err != nil {
-		return "", err
-	}
-
-	if _, err = dst.Write([]byte(data)); err != nil {
-		return "", err
-	}
-
-	return data, err
-}
-
-func encrypt(plaintext, key []byte) (string, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
-
-	iv := ciphertext[:aes.BlockSize]
-
-	if _, err = rand.Read(iv); err != nil {
-		return "", err
-	}
-
-	stream := cipher.NewCTR(block, iv)
-	stream.XORKeyStream(ciphertext[aes.BlockSize:], plaintext)
-
-	return hex.EncodeToString(ciphertext), nil
 }

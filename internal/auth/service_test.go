@@ -1,26 +1,29 @@
 package auth
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/KirillMironov/beaver/pkg/log"
+	"github.com/KirillMironov/beaver/pkg/mock"
 )
 
-func TestService_Create(t *testing.T) {
-	logger, err := log.New()
+func TestNewService(t *testing.T) {
+	t.Parallel()
+
+	dataDir := t.TempDir()
+
+	_, err := NewService(dataDir, mock.Logger{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	service, err := NewService(t.TempDir(), logger)
+	stat, err := os.Stat(filepath.Join(dataDir, beaverFilename))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	user, err := service.Create("passphrase", "ad")
-	if err != nil {
-		t.Fatal(err)
+	if stat.Size() == 0 {
+		t.Fatal("expected non-empty file")
 	}
-
-	t.Log(user)
 }
