@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
@@ -89,13 +88,9 @@ func (s Service) Authenticate(passphrase string) (User, error) {
 }
 
 func (s Service) verifyMasterKey(masterKey string) error {
-	file, err := os.Open(filepath.Join(s.dataDir, beaverFilename))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+	path := filepath.Join(s.dataDir, beaverFilename)
 
-	fileCiphertext, err := io.ReadAll(file)
+	fileCiphertext, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}

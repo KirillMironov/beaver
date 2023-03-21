@@ -1,8 +1,6 @@
 package auth
 
 import (
-	"errors"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,13 +19,45 @@ func TestNewService(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "success",
+			name:    "valid data dir",
 			dataDir: t.TempDir(),
 			wantErr: false,
 		},
 		{
-			name:    "error",
+			name:    "invalid data dir",
 			dataDir: "",
+			wantErr: true,
+		},
+		{
+			name: "not empty data dir",
+			dataDir: func() string {
+				t.Helper()
+
+				path := t.TempDir()
+
+				file, err := os.Create(filepath.Join(path, "file"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer file.Close()
+
+				return path
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "data dir is not writable",
+			dataDir: func() string {
+				t.Helper()
+
+				path := filepath.Join(t.TempDir(), "data")
+
+				if err := os.MkdirAll(path, 0000); err != nil {
+					t.Fatal(err)
+				}
+
+				return path
+			}(),
 			wantErr: true,
 		},
 	}
@@ -49,40 +79,23 @@ func TestNewService(t *testing.T) {
 				return
 			}
 
-			words := strings.Split(logger.First(), " ")
+			log := logger.First()
+			lastIndex := strings.LastIndex(log, " ")
+			masterKey := strings.Trim(log[lastIndex+1:], `"`)
 
-			key := words[len(words)-1][1 : len(words[len(words)-1])-1]
+			ciphertext, err := os.ReadFile(filepath.Join(tc.dataDir, beaverFilename))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			secretKey := []byte(key)
+			plaintext, err := aes.Decrypt(ciphertext, []byte(masterKey))
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			err = verifySecret(filepath.Join(tc.dataDir, beaverFilename), secretKey)
-			if err != nil != tc.wantErr {
-				t.Fatalf("error = %v, wantErr %v", err, tc.wantErr)
+			if string(plaintext) != authMessage {
+				t.Fatal("master key is invalid")
 			}
 		})
 	}
-}
-
-func verifySecret(path string, key []byte) error {
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	ciphertext, err := io.ReadAll(file)
-	if err != nil {
-		return err
-	}
-
-	plaintext, err := aes.Decrypt(ciphertext, key)
-	if err != nil {
-		return err
-	}
-
-	if string(plaintext) != authMessage {
-		return errors.New("key is invalid")
-	}
-
-	return nil
 }
