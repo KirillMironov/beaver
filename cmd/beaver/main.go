@@ -3,8 +3,8 @@ package main
 import (
 	"go.uber.org/fx"
 
-	"github.com/KirillMironov/beaver/internal/auth"
-	"github.com/KirillMironov/beaver/pkg/log"
+	"github.com/KirillMironov/beaver/internal/log"
+	"github.com/KirillMironov/beaver/internal/server/auth"
 )
 
 func main() {

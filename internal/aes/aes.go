@@ -80,7 +80,7 @@ func Decrypt(ciphertext, key []byte) ([]byte, error) {
 
 // GenerateKey generates a random key of the given length.
 func GenerateKey(length int) ([]byte, error) {
-	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}\\|;:'\",.<>/?`~"
+	const chars = `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()-_+={}[]|<>,.?;:~`
 
 	key := make([]byte, length)
 
