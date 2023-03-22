@@ -3,9 +3,10 @@ package aes
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
 	"encoding/base64"
 	"errors"
+
+	"github.com/KirillMironov/beaver/internal/rand"
 )
 
 // KeyLength is the recommended length of the AES key.
@@ -26,7 +27,7 @@ func Encrypt(plaintext, key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	iv, err := GenerateKey(gcm.NonceSize())
+	iv, err := rand.Key(gcm.NonceSize())
 	if err != nil {
 		return nil, err
 	}
@@ -76,21 +77,4 @@ func Decrypt(ciphertext, key []byte) ([]byte, error) {
 	}
 
 	return plaintext, nil
-}
-
-// GenerateKey generates a random key of the given length.
-func GenerateKey(length int) ([]byte, error) {
-	const chars = `0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!@#$%^&*()-_+={}[]|<>,.?;:~`
-
-	key := make([]byte, length)
-
-	if _, err := rand.Read(key); err != nil {
-		return nil, err
-	}
-
-	for i, b := range key {
-		key[i] = chars[b%byte(len(chars))]
-	}
-
-	return key, nil
 }

@@ -2,13 +2,17 @@ package auth
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"golang.org/x/crypto/pbkdf2"
+
 	"github.com/KirillMironov/beaver/internal/aes"
 	"github.com/KirillMironov/beaver/internal/log"
+	"github.com/KirillMironov/beaver/internal/rand"
 )
 
 const (
@@ -17,9 +21,12 @@ const (
 )
 
 var (
-	ErrInvalidMasterKey = errors.New("invalid master key")
-	ErrUserExists       = errors.New("user already exists")
-	ErrUserNotFound     = errors.New("user not found")
+	ErrInvalidMasterKey  = errors.New("invalid master key")
+	ErrInvalidPassphrase = errors.New("invalid passphrase")
+	ErrUserAlreadyExists = errors.New("user already exists")
+	ErrUserNotFound      = errors.New("user not found")
+	errEmptyUsername     = errors.New("username cannot be empty")
+	errEmptyPassphrase   = errors.New("passphrase cannot be empty")
 )
 
 type Service struct {
@@ -36,71 +43,101 @@ func NewService(dataDir string, logger log.Logger) (*Service, error) {
 	return service, service.generateMasterKeyIfNotExists()
 }
 
-func (s Service) AddUser(passphrase, masterKey string) (User, error) {
+func (s Service) AddUser(username, passphrase, masterKey string) (User, error) {
+	if username == "" {
+		return User{}, errEmptyUsername
+	}
+
+	if passphrase == "" {
+		return User{}, errEmptyPassphrase
+	}
+
+	userDataDir := filepath.Join(s.dataDir, username)
+
+	if _, err := os.Stat(userDataDir); err == nil {
+		return User{}, ErrUserAlreadyExists
+	}
+
 	if err := s.verifyMasterKey(masterKey); err != nil {
 		return User{}, err
 	}
 
-	ciphertext, err := aes.Encrypt([]byte(authMessage), []byte(passphrase))
+	key := deriveKey(passphrase, username)
+
+	ciphertext, err := aes.Encrypt([]byte(authMessage), key)
 	if err != nil {
 		return User{}, err
-	}
-
-	userID := string(ciphertext)
-
-	userDataDir := filepath.Join(s.dataDir, userID)
-
-	if _, err = os.Stat(userDataDir); err == nil {
-		return User{}, ErrUserExists
 	}
 
 	if err = os.MkdirAll(userDataDir, 0700); err != nil {
 		return User{}, err
 	}
 
-	return User{
-		ID:      userID,
-		DataDir: userDataDir,
-	}, nil
-}
-
-func (s Service) Authenticate(passphrase string) (User, error) {
-	ciphertext, err := aes.Encrypt([]byte(authMessage), []byte(passphrase))
-	if err != nil {
+	if err = os.WriteFile(filepath.Join(userDataDir, "."+username), ciphertext, 0400); err != nil {
+		_ = os.Remove(userDataDir)
 		return User{}, err
 	}
 
-	userID := string(ciphertext)
+	return User{
+		Username: username,
+		DataDir:  userDataDir,
+	}, nil
+}
 
-	userDataDir := filepath.Join(s.dataDir, userID)
+func (s Service) Authenticate(username, passphrase string) (User, error) {
+	if username == "" {
+		return User{}, errEmptyUsername
+	}
 
-	if _, err = os.Stat(userDataDir); err != nil {
+	if passphrase == "" {
+		return User{}, errEmptyPassphrase
+	}
+
+	userDataDir := filepath.Join(s.dataDir, username)
+
+	fileCiphertext, err := os.ReadFile(filepath.Join(userDataDir, "."+username))
+	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return User{}, ErrUserNotFound
 		}
 		return User{}, err
 	}
 
+	key := deriveKey(passphrase, username)
+
+	plaintext, err := aes.Decrypt(fileCiphertext, key)
+	if err != nil {
+		return User{}, err
+	}
+
+	if !bytes.Equal(plaintext, []byte(authMessage)) {
+		return User{}, ErrInvalidPassphrase
+	}
+
 	return User{
-		ID:      userID,
-		DataDir: userDataDir,
+		Username: username,
+		DataDir:  userDataDir,
 	}, nil
 }
 
 func (s Service) verifyMasterKey(masterKey string) error {
+	if len(masterKey) != aes.KeyLength {
+		return ErrInvalidMasterKey
+	}
+
 	path := filepath.Join(s.dataDir, beaverFilename)
 
-	fileCiphertext, err := os.ReadFile(path)
+	ciphertext, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
 
-	ciphertext, err := aes.Encrypt([]byte(authMessage), []byte(masterKey))
+	plaintext, err := aes.Decrypt(ciphertext, []byte(masterKey))
 	if err != nil {
 		return err
 	}
 
-	if !bytes.Equal(fileCiphertext, ciphertext) {
+	if !bytes.Equal(plaintext, []byte(authMessage)) {
 		return ErrInvalidMasterKey
 	}
 
@@ -127,13 +164,7 @@ func (s Service) generateMasterKeyIfNotExists() error {
 		return err
 	}
 
-	file, err := os.Create(filepath.Join(s.dataDir, beaverFilename))
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	masterKey, err := aes.GenerateKey(aes.KeyLength)
+	masterKey, err := rand.Key(aes.KeyLength)
 	if err != nil {
 		return err
 	}
@@ -143,11 +174,16 @@ func (s Service) generateMasterKeyIfNotExists() error {
 		return err
 	}
 
-	if _, err = file.Write(ciphertext); err != nil {
+	if err = os.WriteFile(filepath.Join(s.dataDir, beaverFilename), ciphertext, 0400); err != nil {
+		_ = os.Remove(s.dataDir)
 		return err
 	}
 
 	s.logger.Infof("master key: %q", masterKey)
 
 	return err
+}
+
+func deriveKey(passphrase, salt string) []byte {
+	return pbkdf2.Key([]byte(passphrase), []byte(salt), 10000, aes.KeyLength, sha256.New)
 }
