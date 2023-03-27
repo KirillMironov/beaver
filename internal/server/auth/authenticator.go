@@ -29,21 +29,21 @@ var (
 	errEmptyPassphrase   = errors.New("passphrase cannot be empty")
 )
 
-type Service struct {
+type Authenticator struct {
 	dataDir string
 	logger  log.Logger
 }
 
-func NewService(dataDir string, logger log.Logger) (*Service, error) {
-	service := &Service{
+func NewAuthenticator(dataDir string, logger log.Logger) (*Authenticator, error) {
+	authenticator := &Authenticator{
 		dataDir: dataDir,
 		logger:  logger,
 	}
 
-	return service, service.generateMasterKeyIfNotExists()
+	return authenticator, authenticator.generateMasterKeyIfNotExists()
 }
 
-func (s Service) AddUser(username, passphrase, masterKey string) (User, error) {
+func (a Authenticator) AddUser(username, passphrase, masterKey string) (User, error) {
 	if username == "" {
 		return User{}, errEmptyUsername
 	}
@@ -52,13 +52,13 @@ func (s Service) AddUser(username, passphrase, masterKey string) (User, error) {
 		return User{}, errEmptyPassphrase
 	}
 
-	userDataDir := filepath.Join(s.dataDir, username)
+	userDataDir := filepath.Join(a.dataDir, username)
 
 	if _, err := os.Stat(userDataDir); err == nil {
 		return User{}, ErrUserAlreadyExists
 	}
 
-	if err := s.verifyMasterKey(masterKey); err != nil {
+	if err := a.verifyMasterKey(masterKey); err != nil {
 		return User{}, err
 	}
 
@@ -84,7 +84,7 @@ func (s Service) AddUser(username, passphrase, masterKey string) (User, error) {
 	}, nil
 }
 
-func (s Service) Authenticate(username, passphrase string) (User, error) {
+func (a Authenticator) Authenticate(username, passphrase string) (User, error) {
 	if username == "" {
 		return User{}, errEmptyUsername
 	}
@@ -93,7 +93,7 @@ func (s Service) Authenticate(username, passphrase string) (User, error) {
 		return User{}, errEmptyPassphrase
 	}
 
-	userDataDir := filepath.Join(s.dataDir, username)
+	userDataDir := filepath.Join(a.dataDir, username)
 
 	fileCiphertext, err := os.ReadFile(filepath.Join(userDataDir, "."+username))
 	if err != nil {
@@ -120,12 +120,12 @@ func (s Service) Authenticate(username, passphrase string) (User, error) {
 	}, nil
 }
 
-func (s Service) verifyMasterKey(masterKey string) error {
+func (a Authenticator) verifyMasterKey(masterKey string) error {
 	if len(masterKey) != aes.KeyLength {
 		return ErrInvalidMasterKey
 	}
 
-	path := filepath.Join(s.dataDir, beaverFilename)
+	path := filepath.Join(a.dataDir, beaverFilename)
 
 	ciphertext, err := os.ReadFile(path)
 	if err != nil {
@@ -144,8 +144,8 @@ func (s Service) verifyMasterKey(masterKey string) error {
 	return nil
 }
 
-func (s Service) generateMasterKeyIfNotExists() error {
-	dirEntries, err := os.ReadDir(s.dataDir)
+func (a Authenticator) generateMasterKeyIfNotExists() error {
+	dirEntries, err := os.ReadDir(a.dataDir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -157,10 +157,10 @@ func (s Service) generateMasterKeyIfNotExists() error {
 			}
 		}
 
-		return fmt.Errorf("data directory %q is not empty", s.dataDir)
+		return fmt.Errorf("data directory %q is not empty", a.dataDir)
 	}
 
-	if err = os.MkdirAll(s.dataDir, 0700); err != nil {
+	if err = os.MkdirAll(a.dataDir, 0700); err != nil {
 		return err
 	}
 
@@ -174,12 +174,12 @@ func (s Service) generateMasterKeyIfNotExists() error {
 		return err
 	}
 
-	if err = os.WriteFile(filepath.Join(s.dataDir, beaverFilename), ciphertext, 0400); err != nil {
-		_ = os.Remove(s.dataDir)
+	if err = os.WriteFile(filepath.Join(a.dataDir, beaverFilename), ciphertext, 0400); err != nil {
+		_ = os.Remove(a.dataDir)
 		return err
 	}
 
-	s.logger.Infof("master key: %q", masterKey)
+	a.logger.Infof("master key: %q", masterKey)
 
 	return err
 }

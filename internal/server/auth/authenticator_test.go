@@ -10,7 +10,7 @@ import (
 	"github.com/KirillMironov/beaver/internal/log/observer"
 )
 
-func TestNewService(t *testing.T) {
+func TestNewAuthenticator(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -70,9 +70,9 @@ func TestNewService(t *testing.T) {
 
 			logger := observer.New()
 
-			_, err := NewService(tc.dataDir, logger)
+			_, err := NewAuthenticator(tc.dataDir, logger)
 			if err != nil != tc.wantErr {
-				t.Fatalf("NewService() error = %v, wantErr %v", err, tc.wantErr)
+				t.Fatalf("NewAuthenticator() error = %v, wantErr %v", err, tc.wantErr)
 			}
 
 			if tc.wantErr {
@@ -100,10 +100,10 @@ func TestNewService(t *testing.T) {
 	}
 }
 
-func TestService_AddUser(t *testing.T) {
+func TestAuthenticator_AddUser(t *testing.T) {
 	t.Parallel()
 
-	service, masterKey := newService(t)
+	authenticator, masterKey := newAuthenticator(t)
 
 	tests := []struct {
 		name       string
@@ -151,7 +151,7 @@ func TestService_AddUser(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			user, err := service.AddUser(tc.username, tc.passphrase, tc.masterKey)
+			user, err := authenticator.AddUser(tc.username, tc.passphrase, tc.masterKey)
 			if err != tc.wantErr {
 				t.Fatalf("AddUser() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -171,12 +171,12 @@ func TestService_AddUser(t *testing.T) {
 	}
 }
 
-func TestService_Authenticate(t *testing.T) {
+func TestAuthenticator_Authenticate(t *testing.T) {
 	t.Parallel()
 
-	service, masterKey := newService(t)
+	authenticator, masterKey := newAuthenticator(t)
 
-	_, err := service.AddUser("user", "passphrase", masterKey)
+	_, err := authenticator.AddUser("user", "passphrase", masterKey)
 	if err != nil {
 		t.Fatalf("AddUser() error = %v", err)
 	}
@@ -221,7 +221,7 @@ func TestService_Authenticate(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			user, err := service.Authenticate(tc.username, tc.passphrase)
+			user, err := authenticator.Authenticate(tc.username, tc.passphrase)
 			if err != nil != tc.wantErr {
 				t.Fatalf("Authenticate() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -237,14 +237,14 @@ func TestService_Authenticate(t *testing.T) {
 	}
 }
 
-func newService(t *testing.T) (service *Service, masterKey string) {
+func newAuthenticator(t *testing.T) (authenticator *Authenticator, masterKey string) {
 	t.Helper()
 
 	dataDir := t.TempDir()
 
 	logger := observer.New()
 
-	service, err := NewService(dataDir, logger)
+	authenticator, err := NewAuthenticator(dataDir, logger)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,5 +253,5 @@ func newService(t *testing.T) (service *Service, masterKey string) {
 	lastIndex := strings.LastIndex(log, " ")
 	masterKey = strings.Trim(log[lastIndex+1:], `"`)
 
-	return service, masterKey
+	return authenticator, masterKey
 }
