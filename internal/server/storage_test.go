@@ -1,14 +1,12 @@
-package storage
+package server
 
 import (
-	"io"
 	"strings"
 	"testing"
 
 	"github.com/KirillMironov/beaver/internal/aes"
 	"github.com/KirillMironov/beaver/internal/log/observer"
 	"github.com/KirillMironov/beaver/internal/rand"
-	"github.com/KirillMironov/beaver/internal/server/auth"
 )
 
 const (
@@ -23,24 +21,21 @@ const (
 func TestStorage_UploadDownload(t *testing.T) {
 	t.Parallel()
 
-	var (
-		authenticator = newAuthenticatorMock(t, t.TempDir())
-		file          = newFileMock(fileName, fileContent)
-	)
+	authenticator := newAuthenticatorMock(t, t.TempDir())
 
 	storage := NewStorage(authenticator, observer.New())
 
-	if err := storage.Upload(username, passphrase, file); err != nil {
+	if err := storage.Upload(username, passphrase, fileName, strings.NewReader(fileContent)); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := storage.Upload(username, passphrase, file); err == nil {
+	if err := storage.Upload(username, passphrase, fileName, strings.NewReader(fileContent)); err == nil {
 		t.Fatalf("got nil, want error on file already exists")
 	}
 
 	dst := &strings.Builder{}
 
-	if err := storage.Download(username, passphrase, file.Name(), dst); err != nil {
+	if err := storage.Download(username, passphrase, fileName, dst); err != nil {
 		t.Fatal(err)
 	}
 
@@ -52,11 +47,7 @@ func TestStorage_UploadDownload(t *testing.T) {
 func TestStorage_List(t *testing.T) {
 	t.Parallel()
 
-	var (
-		authenticator = newAuthenticatorMock(t, t.TempDir())
-		file          = newFileMock(fileName, fileContent)
-		file2         = newFileMock(file2Name, fileContent)
-	)
+	authenticator := newAuthenticatorMock(t, t.TempDir())
 
 	storage := NewStorage(authenticator, observer.New())
 
@@ -69,8 +60,8 @@ func TestStorage_List(t *testing.T) {
 		t.Fatalf("got %d, want %d", got, want)
 	}
 
-	for _, v := range []File{file, file2} {
-		if err = storage.Upload(username, passphrase, v); err != nil {
+	for _, v := range []string{fileName, file2Name} {
+		if err = storage.Upload(username, passphrase, v, strings.NewReader(fileContent)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -84,33 +75,13 @@ func TestStorage_List(t *testing.T) {
 		t.Fatalf("got %d, want %d", got, want)
 	}
 
-	if got, want := filenames[0], file.Name(); got != want {
+	if got, want := filenames[0], fileName; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 
-	if got, want := filenames[1], file2.Name(); got != want {
+	if got, want := filenames[1], file2Name; got != want {
 		t.Fatalf("got %q, want %q", got, want)
 	}
-}
-
-type fileMock struct {
-	name string
-	src  io.Reader
-}
-
-func newFileMock(name, content string) File {
-	return fileMock{
-		name: name,
-		src:  strings.NewReader(content),
-	}
-}
-
-func (fm fileMock) Read(p []byte) (n int, err error) {
-	return fm.src.Read(p)
-}
-
-func (fm fileMock) Name() string {
-	return fm.name
 }
 
 type authenticatorMock struct {
@@ -118,7 +89,7 @@ type authenticatorMock struct {
 	key     []byte
 }
 
-func newAuthenticatorMock(t *testing.T, dataDir string) Authenticator {
+func newAuthenticatorMock(t *testing.T, dataDir string) authenticator {
 	key, err := rand.Key(aes.KeyLength)
 	if err != nil {
 		t.Fatal(err)
@@ -130,10 +101,10 @@ func newAuthenticatorMock(t *testing.T, dataDir string) Authenticator {
 	}
 }
 
-func (am authenticatorMock) Authenticate(_, _ string) (auth.User, error) {
-	return auth.User{
+func (am authenticatorMock) Authenticate(_, _ string) (User, error) {
+	return User{
 		Username: "mock",
 		DataDir:  am.dataDir,
-		Key:      am.key,
+		key:      am.key,
 	}, nil
 }

@@ -1,4 +1,4 @@
-package auth
+package server
 
 import (
 	"bytes"
@@ -21,13 +21,25 @@ const (
 )
 
 var (
-	ErrInvalidMasterKey  = errors.New("invalid master key")
-	ErrInvalidPassphrase = errors.New("invalid passphrase")
-	ErrUserAlreadyExists = errors.New("user already exists")
-	ErrUserNotFound      = errors.New("user not found")
+	errInvalidMasterKey  = errors.New("invalid master key")
+	errInvalidPassphrase = errors.New("invalid passphrase")
+	errUserAlreadyExists = errors.New("user already exists")
+	errUserNotFound      = errors.New("user not found")
 	errEmptyUsername     = errors.New("username cannot be empty")
 	errEmptyPassphrase   = errors.New("passphrase cannot be empty")
 )
+
+type User struct {
+	Username string
+	DataDir  string
+	key      []byte
+}
+
+func (u User) Key() []byte {
+	key := make([]byte, len(u.key))
+	copy(key, u.key)
+	return key
+}
 
 type Authenticator struct {
 	dataDir string
@@ -55,7 +67,7 @@ func (a Authenticator) AddUser(username, passphrase, masterKey string) (User, er
 	userDataDir := filepath.Join(a.dataDir, username)
 
 	if _, err := os.Stat(userDataDir); err == nil {
-		return User{}, ErrUserAlreadyExists
+		return User{}, errUserAlreadyExists
 	}
 
 	if err := a.verifyMasterKey(masterKey); err != nil {
@@ -81,6 +93,7 @@ func (a Authenticator) AddUser(username, passphrase, masterKey string) (User, er
 	return User{
 		Username: username,
 		DataDir:  userDataDir,
+		key:      key,
 	}, nil
 }
 
@@ -98,7 +111,7 @@ func (a Authenticator) Authenticate(username, passphrase string) (User, error) {
 	fileCiphertext, err := os.ReadFile(filepath.Join(userDataDir, "."+username))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return User{}, ErrUserNotFound
+			return User{}, errUserNotFound
 		}
 		return User{}, err
 	}
@@ -111,18 +124,19 @@ func (a Authenticator) Authenticate(username, passphrase string) (User, error) {
 	}
 
 	if !bytes.Equal(plaintext, []byte(authMessage)) {
-		return User{}, ErrInvalidPassphrase
+		return User{}, errInvalidPassphrase
 	}
 
 	return User{
 		Username: username,
 		DataDir:  userDataDir,
+		key:      key,
 	}, nil
 }
 
 func (a Authenticator) verifyMasterKey(masterKey string) error {
 	if len(masterKey) != aes.KeyLength {
-		return ErrInvalidMasterKey
+		return errInvalidMasterKey
 	}
 
 	path := filepath.Join(a.dataDir, beaverFilename)
@@ -138,7 +152,7 @@ func (a Authenticator) verifyMasterKey(masterKey string) error {
 	}
 
 	if !bytes.Equal(plaintext, []byte(authMessage)) {
-		return ErrInvalidMasterKey
+		return errInvalidMasterKey
 	}
 
 	return nil

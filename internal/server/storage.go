@@ -1,4 +1,4 @@
-package storage
+package server
 
 import (
 	"io"
@@ -7,39 +7,31 @@ import (
 
 	"github.com/KirillMironov/beaver/internal/aes"
 	"github.com/KirillMironov/beaver/internal/log"
-	"github.com/KirillMironov/beaver/internal/server/auth"
 )
 
 type Storage struct {
-	authenticator Authenticator
+	authenticator authenticator
 	logger        log.Logger
 }
 
-type (
-	Authenticator interface {
-		Authenticate(username, passphrase string) (auth.User, error)
-	}
+type authenticator interface {
+	Authenticate(username, passphrase string) (User, error)
+}
 
-	File interface {
-		io.Reader
-		Name() string
-	}
-)
-
-func NewStorage(authenticator Authenticator, logger log.Logger) *Storage {
+func NewStorage(authenticator authenticator, logger log.Logger) *Storage {
 	return &Storage{
 		authenticator: authenticator,
 		logger:        logger,
 	}
 }
 
-func (s Storage) Upload(username, passphrase string, file File) error {
+func (s Storage) Upload(username, passphrase string, filename string, src io.Reader) error {
 	user, err := s.authenticator.Authenticate(username, passphrase)
 	if err != nil {
 		return err
 	}
 
-	path := filepath.Join(user.DataDir, file.Name())
+	path := filepath.Join(user.DataDir, filename)
 
 	dst, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
@@ -47,9 +39,9 @@ func (s Storage) Upload(username, passphrase string, file File) error {
 	}
 	defer dst.Close()
 
-	encrypter := aes.NewEncrypter(file, dst)
+	encrypter := aes.NewEncrypter(src, dst)
 
-	return encrypter.Encrypt(user.Key)
+	return encrypter.Encrypt(user.Key())
 }
 
 func (s Storage) Download(username, passphrase, filename string, dst io.Writer) error {
@@ -68,7 +60,7 @@ func (s Storage) Download(username, passphrase, filename string, dst io.Writer) 
 
 	decrypter := aes.NewDecrypter(file, dst)
 
-	return decrypter.Decrypt(user.Key)
+	return decrypter.Decrypt(user.Key())
 }
 
 func (s Storage) List(username, passphrase string) ([]string, error) {

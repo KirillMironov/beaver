@@ -1,4 +1,4 @@
-package auth
+package server
 
 import (
 	"os"
@@ -117,7 +117,7 @@ func TestAuthenticator_AddUser(t *testing.T) {
 			username:   "user",
 			passphrase: "passphrase",
 			masterKey:  "invalid",
-			wantErr:    ErrInvalidMasterKey,
+			wantErr:    errInvalidMasterKey,
 		},
 		{
 			name:       "valid user",
@@ -131,7 +131,7 @@ func TestAuthenticator_AddUser(t *testing.T) {
 			username:   "user",
 			passphrase: "passphrase",
 			masterKey:  masterKey,
-			wantErr:    ErrUserAlreadyExists,
+			wantErr:    errUserAlreadyExists,
 		},
 		{
 			name:       "empty username",
