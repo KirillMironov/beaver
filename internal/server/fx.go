@@ -6,13 +6,15 @@ import (
 	"github.com/KirillMironov/beaver/internal/server/config"
 )
 
-var Module = fx.Module(
-	"server",
-	fx.Provide(
-		func(cfg config.Config) string {
-			return cfg.DataDir
-		},
-		fx.Annotate(NewAuthenticator, fx.As(new(authenticator))),
-		NewStorage,
-	),
-)
+func Module() fx.Option {
+	return fx.Module(
+		"server",
+		fx.Provide(
+			func(cfg config.Config) string {
+				return cfg.DataDir
+			},
+			fx.Annotate(NewAuthenticator, fx.As(new(authenticator))),
+			NewStorage,
+		),
+	)
+}

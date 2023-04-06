@@ -3,6 +3,7 @@ package transport
 import (
 	"io"
 
+	"github.com/KirillMironov/beaver/internal/grpcutil"
 	"github.com/KirillMironov/beaver/internal/server/transport/proto"
 )
 
@@ -19,10 +20,18 @@ func NewStorageService(storage Storage) *StorageService {
 	return &StorageService{storage: storage}
 }
 
-func (ss StorageService) Upload(server proto.Storage_UploadServer) error {
-	return nil
+func (s StorageService) Upload(request *proto.UploadRequest, stream proto.Storage_UploadServer) error {
+	user := request.User
+
+	reader := grpcutil.StreamToReader[*proto.File](stream.Context(), stream)
+
+	return s.storage.Upload(user.Username, user.Passphrase, request.Filename, reader)
 }
 
-func (ss StorageService) Download(request *proto.FileRequest, server proto.Storage_DownloadServer) error {
-	return nil
+func (s StorageService) Download(request *proto.DownloadRequest, stream proto.Storage_DownloadServer) error {
+	user := request.User
+
+	writer := grpcutil.StreamToWriter[*proto.File](stream.Context(), stream)
+
+	return s.storage.Download(user.Username, user.Passphrase, request.Filename, writer)
 }

@@ -22,8 +22,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type StorageClient interface {
-	Upload(ctx context.Context, opts ...grpc.CallOption) (Storage_UploadClient, error)
-	Download(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (Storage_DownloadClient, error)
+	Upload(ctx context.Context, in *UploadRequest, opts ...grpc.CallOption) (Storage_UploadClient, error)
+	Download(ctx context.Context, in *DownloadRequest, opts ...grpc.CallOption) (Storage_DownloadClient, error)
 }
 
 type storageClient struct {
@@ -34,18 +34,23 @@ func NewStorageClient(cc grpc.ClientConnInterface) StorageClient {
 	return &storageClient{cc}
 }
 
-func (c *storageClient) Upload(ctx context.Context, opts ...grpc.CallOption) (Storage_UploadClient, error) {
+func (c *storageClient) Upload(ctx context.Context, in *UploadRequest, opts ...grpc.CallOption) (Storage_UploadClient, error) {
 	stream, err := c.cc.NewStream(ctx, &Storage_ServiceDesc.Streams[0], "/proto.Storage/Upload", opts...)
 	if err != nil {
 		return nil, err
 	}
 	x := &storageUploadClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
 	return x, nil
 }
 
 type Storage_UploadClient interface {
-	Send(*FileChunk) error
-	CloseAndRecv() (*Response, error)
+	Recv() (*File, error)
 	grpc.ClientStream
 }
 
@@ -53,22 +58,15 @@ type storageUploadClient struct {
 	grpc.ClientStream
 }
 
-func (x *storageUploadClient) Send(m *FileChunk) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *storageUploadClient) CloseAndRecv() (*Response, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(Response)
+func (x *storageUploadClient) Recv() (*File, error) {
+	m := new(File)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (c *storageClient) Download(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (Storage_DownloadClient, error) {
+func (c *storageClient) Download(ctx context.Context, in *DownloadRequest, opts ...grpc.CallOption) (Storage_DownloadClient, error) {
 	stream, err := c.cc.NewStream(ctx, &Storage_ServiceDesc.Streams[1], "/proto.Storage/Download", opts...)
 	if err != nil {
 		return nil, err
@@ -84,7 +82,7 @@ func (c *storageClient) Download(ctx context.Context, in *FileRequest, opts ...g
 }
 
 type Storage_DownloadClient interface {
-	Recv() (*FileChunk, error)
+	Recv() (*File, error)
 	grpc.ClientStream
 }
 
@@ -92,8 +90,8 @@ type storageDownloadClient struct {
 	grpc.ClientStream
 }
 
-func (x *storageDownloadClient) Recv() (*FileChunk, error) {
-	m := new(FileChunk)
+func (x *storageDownloadClient) Recv() (*File, error) {
+	m := new(File)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -104,18 +102,18 @@ func (x *storageDownloadClient) Recv() (*FileChunk, error) {
 // All implementations should embed UnimplementedStorageServer
 // for forward compatibility
 type StorageServer interface {
-	Upload(Storage_UploadServer) error
-	Download(*FileRequest, Storage_DownloadServer) error
+	Upload(*UploadRequest, Storage_UploadServer) error
+	Download(*DownloadRequest, Storage_DownloadServer) error
 }
 
 // UnimplementedStorageServer should be embedded to have forward compatible implementations.
 type UnimplementedStorageServer struct {
 }
 
-func (UnimplementedStorageServer) Upload(Storage_UploadServer) error {
+func (UnimplementedStorageServer) Upload(*UploadRequest, Storage_UploadServer) error {
 	return status.Errorf(codes.Unimplemented, "method Upload not implemented")
 }
-func (UnimplementedStorageServer) Download(*FileRequest, Storage_DownloadServer) error {
+func (UnimplementedStorageServer) Download(*DownloadRequest, Storage_DownloadServer) error {
 	return status.Errorf(codes.Unimplemented, "method Download not implemented")
 }
 
@@ -131,12 +129,15 @@ func RegisterStorageServer(s grpc.ServiceRegistrar, srv StorageServer) {
 }
 
 func _Storage_Upload_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(StorageServer).Upload(&storageUploadServer{stream})
+	m := new(UploadRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(StorageServer).Upload(m, &storageUploadServer{stream})
 }
 
 type Storage_UploadServer interface {
-	SendAndClose(*Response) error
-	Recv() (*FileChunk, error)
+	Send(*File) error
 	grpc.ServerStream
 }
 
@@ -144,20 +145,12 @@ type storageUploadServer struct {
 	grpc.ServerStream
 }
 
-func (x *storageUploadServer) SendAndClose(m *Response) error {
+func (x *storageUploadServer) Send(m *File) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *storageUploadServer) Recv() (*FileChunk, error) {
-	m := new(FileChunk)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func _Storage_Download_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(FileRequest)
+	m := new(DownloadRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
@@ -165,7 +158,7 @@ func _Storage_Download_Handler(srv interface{}, stream grpc.ServerStream) error 
 }
 
 type Storage_DownloadServer interface {
-	Send(*FileChunk) error
+	Send(*File) error
 	grpc.ServerStream
 }
 
@@ -173,7 +166,7 @@ type storageDownloadServer struct {
 	grpc.ServerStream
 }
 
-func (x *storageDownloadServer) Send(m *FileChunk) error {
+func (x *storageDownloadServer) Send(m *File) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -188,7 +181,7 @@ var Storage_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Upload",
 			Handler:       _Storage_Upload_Handler,
-			ClientStreams: true,
+			ServerStreams: true,
 		},
 		{
 			StreamName:    "Download",

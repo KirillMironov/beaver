@@ -16,7 +16,8 @@ func main() {
 
 func options() fx.Option {
 	return fx.Options(
-		server.Module,
+		fx.NopLogger,
+		server.Module(),
 		fx.Provide(
 			config.Load,
 			fx.Annotate(log.New, fx.As(new(log.Logger))),

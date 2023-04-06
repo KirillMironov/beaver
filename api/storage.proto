@@ -5,16 +5,25 @@ package proto;
 option go_package = "./;proto";
 
 service Storage {
-  rpc Upload (stream FileChunk) returns (Response) {}
-  rpc Download (FileRequest) returns (stream FileChunk) {}
+  rpc Upload (UploadRequest) returns (stream File) {}
+  rpc Download (DownloadRequest) returns (stream File) {}
 }
 
-message FileChunk {
-  bytes data = 1;
+message User {
+  string username = 1;
+  string passphrase = 2;
 }
 
-message FileRequest {
-  string filename = 1;
+message File {
+  bytes chunk = 1;
 }
 
-message Response {}
+message UploadRequest {
+  User user = 1;
+  string filename = 2;
+}
+
+message DownloadRequest {
+  User user = 1;
+  string filename = 2;
+}
