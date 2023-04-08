@@ -56,6 +56,10 @@ func TestNewAuthenticator(t *testing.T) {
 					t.Fatal(err)
 				}
 
+				if _, err := os.CreateTemp(path, "file"); err == nil {
+					t.Skip("skipping test for root user")
+				}
+
 				return path
 			}(),
 			wantErr: true,
