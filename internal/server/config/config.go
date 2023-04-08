@@ -1,11 +1,13 @@
 package config
 
 type Config struct {
-	DataDir string
+	ServerAddress string
+	DataDir       string
 }
 
 func Load() (Config, error) {
 	return Config{
-		DataDir: "/tmp/beaver",
+		ServerAddress: ":8080",
+		DataDir:       "/tmp/beaver",
 	}, nil
 }

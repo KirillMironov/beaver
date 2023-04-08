@@ -12,7 +12,7 @@ type StorageService struct {
 }
 
 type Storage interface {
-	Upload(username, passphrase string, filename string, src io.Reader) error
+	Upload(username, passphrase, filename string, src io.Reader) error
 	Download(username, passphrase, filename string, dst io.Writer) error
 }
 

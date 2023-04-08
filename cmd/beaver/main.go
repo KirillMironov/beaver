@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
+	"net"
+
 	"go.uber.org/fx"
+	"google.golang.org/grpc"
 
 	"github.com/KirillMironov/beaver/internal/log"
 	"github.com/KirillMironov/beaver/internal/server"
@@ -16,7 +20,6 @@ func main() {
 
 func options() fx.Option {
 	return fx.Options(
-		fx.NopLogger,
 		server.Module(),
 		fx.Provide(
 			config.Load,
@@ -30,6 +33,30 @@ func options() fx.Option {
 	)
 }
 
-func startServer(server proto.StorageServer) {
-	println(server)
+func startServer(lifecycle fx.Lifecycle, cfg config.Config, logger log.Logger, storageService proto.StorageServer) error {
+	listener, err := net.Listen("tcp", cfg.ServerAddress)
+	if err != nil {
+		return err
+	}
+
+	grpcServer := grpc.NewServer()
+
+	proto.RegisterStorageServer(grpcServer, storageService)
+
+	lifecycle.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			go func() {
+				if err = grpcServer.Serve(listener); err != nil {
+					logger.Errorf("failed to serve: %v", err)
+				}
+			}()
+			return nil
+		},
+		OnStop: func(context.Context) error {
+			grpcServer.GracefulStop()
+			return nil
+		},
+	})
+
+	return nil
 }
