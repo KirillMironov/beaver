@@ -7,6 +7,7 @@ option go_package = "./;proto";
 service Storage {
   rpc Upload (UploadRequest) returns (stream File) {}
   rpc Download (DownloadRequest) returns (stream File) {}
+  rpc List (User) returns (ListResponse) {}
 }
 
 message User {
@@ -26,4 +27,8 @@ message UploadRequest {
 message DownloadRequest {
   User user = 1;
   string filename = 2;
+}
+
+message ListResponse {
+  repeated string filenames = 1;
 }
