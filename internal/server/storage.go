@@ -6,23 +6,18 @@ import (
 	"path/filepath"
 
 	"github.com/KirillMironov/beaver/internal/aes"
-	"github.com/KirillMironov/beaver/internal/log"
 )
 
 type Storage struct {
 	authenticator authenticator
-	logger        log.Logger
 }
 
 type authenticator interface {
 	Authenticate(username, passphrase string) (User, error)
 }
 
-func NewStorage(authenticator authenticator, logger log.Logger) *Storage {
-	return &Storage{
-		authenticator: authenticator,
-		logger:        logger,
-	}
+func NewStorage(authenticator authenticator) *Storage {
+	return &Storage{authenticator: authenticator}
 }
 
 func (s Storage) Upload(username, passphrase string, filename string, src io.Reader) error {

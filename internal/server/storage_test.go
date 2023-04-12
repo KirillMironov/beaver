@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/KirillMironov/beaver/internal/aes"
-	"github.com/KirillMironov/beaver/internal/log/observer"
 	"github.com/KirillMironov/beaver/internal/rand"
 )
 
@@ -23,7 +22,7 @@ func TestStorage_UploadDownload(t *testing.T) {
 
 	authenticator := newAuthenticatorMock(t, t.TempDir())
 
-	storage := NewStorage(authenticator, observer.New())
+	storage := NewStorage(authenticator)
 
 	if err := storage.Upload(username, passphrase, fileName, strings.NewReader(fileContent)); err != nil {
 		t.Fatal(err)
@@ -49,7 +48,7 @@ func TestStorage_List(t *testing.T) {
 
 	authenticator := newAuthenticatorMock(t, t.TempDir())
 
-	storage := NewStorage(authenticator, observer.New())
+	storage := NewStorage(authenticator)
 
 	filenames, err := storage.List(username, passphrase)
 	if err != nil {
