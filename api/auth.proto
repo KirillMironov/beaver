@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package proto;
+
+option go_package = "./;proto";
+
+service Authenticator {
+  rpc AddUser(AddUserRequest) returns (Response) {}
+}
+
+message AddUserRequest {
+  string username = 1;
+  string passphrase = 2;
+  string master_key = 3;
+}
+
+message Response {}

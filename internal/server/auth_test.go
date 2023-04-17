@@ -110,52 +110,46 @@ func TestAuthenticator_AddUser(t *testing.T) {
 	authenticator, masterKey := newAuthenticator(t)
 
 	tests := []struct {
-		name       string
-		username   string
-		passphrase string
-		masterKey  string
-		wantErr    error
+		name        string
+		credentials Credentials
+		masterKey   string
+		wantErr     error
 	}{
 		{
-			name:       "invalid master key",
-			username:   "user",
-			passphrase: "passphrase",
-			masterKey:  "invalid",
-			wantErr:    errInvalidMasterKey,
+			name:        "invalid master key",
+			credentials: Credentials{Username: "user", Passphrase: "passphrase"},
+			masterKey:   "invalid",
+			wantErr:     errInvalidMasterKey,
 		},
 		{
-			name:       "valid user",
-			username:   "user",
-			passphrase: "passphrase",
-			masterKey:  masterKey,
-			wantErr:    nil,
+			name:        "valid user",
+			credentials: Credentials{Username: "user", Passphrase: "passphrase"},
+			masterKey:   masterKey,
+			wantErr:     nil,
 		},
 		{
-			name:       "user already exists",
-			username:   "user",
-			passphrase: "passphrase",
-			masterKey:  masterKey,
-			wantErr:    errUserAlreadyExists,
+			name:        "user already exists",
+			credentials: Credentials{Username: "user", Passphrase: "passphrase"},
+			masterKey:   masterKey,
+			wantErr:     errUserAlreadyExists,
 		},
 		{
-			name:       "empty username",
-			username:   "",
-			passphrase: "passphrase",
-			masterKey:  masterKey,
-			wantErr:    errEmptyUsername,
+			name:        "empty username",
+			credentials: Credentials{Username: "", Passphrase: "passphrase"},
+			masterKey:   masterKey,
+			wantErr:     errEmptyUsername,
 		},
 		{
-			name:       "empty passphrase",
-			username:   "user-2",
-			passphrase: "",
-			masterKey:  masterKey,
-			wantErr:    errEmptyPassphrase,
+			name:        "empty passphrase",
+			credentials: Credentials{Username: "user-2", Passphrase: ""},
+			masterKey:   masterKey,
+			wantErr:     errEmptyPassphrase,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			user, err := authenticator.AddUser(tc.username, tc.passphrase, tc.masterKey)
+			user, err := authenticator.AddUser(tc.credentials, tc.masterKey)
 			if err != tc.wantErr {
 				t.Fatalf("AddUser() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -164,8 +158,8 @@ func TestAuthenticator_AddUser(t *testing.T) {
 				return
 			}
 
-			if user.Username != tc.username {
-				t.Fatalf("AddUser() username = %v, want %v", user.Username, tc.username)
+			if user.Username != tc.credentials.Username {
+				t.Fatalf("AddUser() username = %v, want %v", user.Username, tc.credentials.Username)
 			}
 
 			if _, err = os.Stat(user.DataDir); err != nil {
@@ -180,52 +174,46 @@ func TestAuthenticator_Authenticate(t *testing.T) {
 
 	authenticator, masterKey := newAuthenticator(t)
 
-	_, err := authenticator.AddUser("user", "passphrase", masterKey)
+	_, err := authenticator.AddUser(Credentials{Username: "user", Passphrase: "passphrase"}, masterKey)
 	if err != nil {
 		t.Fatalf("AddUser() error = %v", err)
 	}
 
 	tests := []struct {
-		name       string
-		username   string
-		passphrase string
-		wantErr    bool
+		name        string
+		credentials Credentials
+		wantErr     bool
 	}{
 		{
-			name:       "user exists",
-			username:   "user",
-			passphrase: "passphrase",
-			wantErr:    false,
+			name:        "user exists",
+			credentials: Credentials{Username: "user", Passphrase: "passphrase"},
+			wantErr:     false,
 		},
 		{
-			name:       "user not found",
-			username:   "user-2",
-			passphrase: "passphrase",
-			wantErr:    true,
+			name:        "user not found",
+			credentials: Credentials{Username: "user-2", Passphrase: "passphrase"},
+			wantErr:     true,
 		},
 		{
-			name:       "invalid passphrase",
-			username:   "user",
-			passphrase: "invalid",
-			wantErr:    true,
+			name:        "invalid passphrase",
+			credentials: Credentials{Username: "user", Passphrase: "invalid"},
+			wantErr:     true,
 		},
 		{
-			name:       "empty username",
-			username:   "",
-			passphrase: "passphrase",
-			wantErr:    true,
+			name:        "empty username",
+			credentials: Credentials{Username: "", Passphrase: "passphrase"},
+			wantErr:     true,
 		},
 		{
-			name:       "empty passphrase",
-			username:   "user",
-			passphrase: "",
-			wantErr:    true,
+			name:        "empty passphrase",
+			credentials: Credentials{Username: "user", Passphrase: ""},
+			wantErr:     true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			user, err := authenticator.Authenticate(tc.username, tc.passphrase)
+			user, err := authenticator.Authenticate(tc.credentials)
 			if err != nil != tc.wantErr {
 				t.Fatalf("Authenticate() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -234,8 +222,8 @@ func TestAuthenticator_Authenticate(t *testing.T) {
 				return
 			}
 
-			if user.Username != tc.username {
-				t.Fatalf("Authenticate() username = %v, want %v", user.Username, tc.username)
+			if user.Username != tc.credentials.Username {
+				t.Fatalf("Authenticate() username = %v, want %v", user.Username, tc.credentials.Username)
 			}
 		})
 	}

@@ -24,17 +24,22 @@ func TestStorage_UploadDownload(t *testing.T) {
 
 	storage := NewStorage(authenticator)
 
-	if err := storage.Upload(username, passphrase, fileName, strings.NewReader(fileContent)); err != nil {
+	credentials := Credentials{
+		Username:   username,
+		Passphrase: passphrase,
+	}
+
+	if err := storage.Upload(credentials, fileName, strings.NewReader(fileContent)); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := storage.Upload(username, passphrase, fileName, strings.NewReader(fileContent)); err == nil {
+	if err := storage.Upload(credentials, fileName, strings.NewReader(fileContent)); err == nil {
 		t.Fatalf("got nil, want error on file already exists")
 	}
 
 	dst := &strings.Builder{}
 
-	if err := storage.Download(username, passphrase, fileName, dst); err != nil {
+	if err := storage.Download(credentials, fileName, dst); err != nil {
 		t.Fatal(err)
 	}
 
@@ -50,7 +55,12 @@ func TestStorage_List(t *testing.T) {
 
 	storage := NewStorage(authenticator)
 
-	filenames, err := storage.List(username, passphrase)
+	credentials := Credentials{
+		Username:   username,
+		Passphrase: passphrase,
+	}
+
+	filenames, err := storage.List(credentials)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,12 +70,12 @@ func TestStorage_List(t *testing.T) {
 	}
 
 	for _, v := range []string{fileName, file2Name} {
-		if err = storage.Upload(username, passphrase, v, strings.NewReader(fileContent)); err != nil {
+		if err = storage.Upload(credentials, v, strings.NewReader(fileContent)); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	filenames, err = storage.List(username, passphrase)
+	filenames, err = storage.List(credentials)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +110,7 @@ func newAuthenticatorMock(t *testing.T, dataDir string) authenticator {
 	}
 }
 
-func (am authenticatorMock) Authenticate(_, _ string) (User, error) {
+func (am authenticatorMock) Authenticate(Credentials) (User, error) {
 	return User{
 		Username: "mock",
 		DataDir:  am.dataDir,

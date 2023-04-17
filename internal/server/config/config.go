@@ -8,5 +8,5 @@ type Config struct {
 }
 
 func Load() (config Config, _ error) {
-	return config, env.Parse(&config)
+	return config, env.ParseWithOptions(&config, env.Options{Prefix: "BEAVER_"})
 }

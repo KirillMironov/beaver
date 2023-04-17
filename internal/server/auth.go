@@ -29,18 +29,6 @@ var (
 	errEmptyPassphrase   = errors.New("passphrase cannot be empty")
 )
 
-type User struct {
-	Username string
-	DataDir  string
-	key      []byte
-}
-
-func (u User) Key() []byte {
-	key := make([]byte, len(u.key))
-	copy(key, u.key)
-	return key
-}
-
 type Authenticator struct {
 	dataDir string
 	logger  log.Logger
@@ -55,16 +43,12 @@ func NewAuthenticator(dataDir string, logger log.Logger) (*Authenticator, error)
 	return authenticator, authenticator.generateMasterKeyIfNotExists()
 }
 
-func (a Authenticator) AddUser(username, passphrase, masterKey string) (User, error) {
-	if username == "" {
-		return User{}, errEmptyUsername
+func (a Authenticator) AddUser(credentials Credentials, masterKey string) (User, error) {
+	if err := credentials.Validate(); err != nil {
+		return User{}, err
 	}
 
-	if passphrase == "" {
-		return User{}, errEmptyPassphrase
-	}
-
-	userDataDir := filepath.Join(a.dataDir, username)
+	userDataDir := filepath.Join(a.dataDir, credentials.Username)
 
 	if _, err := os.Stat(userDataDir); err == nil {
 		return User{}, errUserAlreadyExists
@@ -74,7 +58,7 @@ func (a Authenticator) AddUser(username, passphrase, masterKey string) (User, er
 		return User{}, err
 	}
 
-	key := deriveKey(passphrase, username)
+	key := deriveKey(credentials.Passphrase, credentials.Username)
 
 	ciphertext, err := aes.Encrypt([]byte(authMessage), key)
 	if err != nil {
@@ -85,30 +69,26 @@ func (a Authenticator) AddUser(username, passphrase, masterKey string) (User, er
 		return User{}, err
 	}
 
-	if err = os.WriteFile(filepath.Join(userDataDir, "."+username), ciphertext, 0400); err != nil {
+	if err = os.WriteFile(filepath.Join(userDataDir, "."+credentials.Username), ciphertext, 0400); err != nil {
 		_ = os.Remove(userDataDir)
 		return User{}, err
 	}
 
 	return User{
-		Username: username,
+		Username: credentials.Username,
 		DataDir:  userDataDir,
 		key:      key,
 	}, nil
 }
 
-func (a Authenticator) Authenticate(username, passphrase string) (User, error) {
-	if username == "" {
-		return User{}, errEmptyUsername
+func (a Authenticator) Authenticate(credentials Credentials) (User, error) {
+	if err := credentials.Validate(); err != nil {
+		return User{}, err
 	}
 
-	if passphrase == "" {
-		return User{}, errEmptyPassphrase
-	}
+	userDataDir := filepath.Join(a.dataDir, credentials.Username)
 
-	userDataDir := filepath.Join(a.dataDir, username)
-
-	fileCiphertext, err := os.ReadFile(filepath.Join(userDataDir, "."+username))
+	fileCiphertext, err := os.ReadFile(filepath.Join(userDataDir, "."+credentials.Username))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return User{}, errUserNotFound
@@ -116,7 +96,7 @@ func (a Authenticator) Authenticate(username, passphrase string) (User, error) {
 		return User{}, err
 	}
 
-	key := deriveKey(passphrase, username)
+	key := deriveKey(credentials.Passphrase, credentials.Username)
 
 	plaintext, err := aes.Decrypt(fileCiphertext, key)
 	if err != nil {
@@ -128,7 +108,7 @@ func (a Authenticator) Authenticate(username, passphrase string) (User, error) {
 	}
 
 	return User{
-		Username: username,
+		Username: credentials.Username,
 		DataDir:  userDataDir,
 		key:      key,
 	}, nil
@@ -196,6 +176,34 @@ func (a Authenticator) generateMasterKeyIfNotExists() error {
 	a.logger.Infof("master key: %q", masterKey)
 
 	return err
+}
+
+type User struct {
+	Username string
+	DataDir  string
+	key      []byte
+}
+
+func (u User) Key() []byte {
+	key := make([]byte, len(u.key))
+	copy(key, u.key)
+	return key
+}
+
+type Credentials struct {
+	Username   string
+	Passphrase string
+}
+
+func (c Credentials) Validate() error {
+	switch {
+	case c.Username == "":
+		return errEmptyUsername
+	case c.Passphrase == "":
+		return errEmptyPassphrase
+	default:
+		return nil
+	}
 }
 
 func deriveKey(passphrase, salt string) []byte {

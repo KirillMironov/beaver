@@ -25,7 +25,14 @@ func options() fx.Option {
 			config.Load,
 			fx.Annotate(log.New, fx.As(new(log.Logger))),
 			fx.Annotate(server.NewStorage, fx.As(new(transport.Storage))),
+			fx.Annotate(
+				func(cfg config.Config, logger log.Logger) (*server.Authenticator, error) {
+					return server.NewAuthenticator(cfg.DataDir, logger)
+				},
+				fx.As(new(transport.Authenticator)),
+			),
 			fx.Annotate(transport.NewStorageService, fx.As(new(proto.StorageServer))),
+			fx.Annotate(transport.NewAuthenticatorService, fx.As(new(proto.AuthenticatorServer))),
 		),
 		fx.Invoke(
 			startServer,
@@ -33,7 +40,7 @@ func options() fx.Option {
 	)
 }
 
-func startServer(lifecycle fx.Lifecycle, cfg config.Config, logger log.Logger, storageService proto.StorageServer) error {
+func startServer(lifecycle fx.Lifecycle, cfg config.Config, logger log.Logger, storage proto.StorageServer, authenticator proto.AuthenticatorServer) error {
 	listener, err := net.Listen("tcp", cfg.ServerAddress)
 	if err != nil {
 		return err
@@ -41,7 +48,8 @@ func startServer(lifecycle fx.Lifecycle, cfg config.Config, logger log.Logger, s
 
 	grpcServer := grpc.NewServer()
 
-	proto.RegisterStorageServer(grpcServer, storageService)
+	proto.RegisterStorageServer(grpcServer, storage)
+	proto.RegisterAuthenticatorServer(grpcServer, authenticator)
 
 	lifecycle.Append(fx.Hook{
 		OnStart: func(context.Context) error {

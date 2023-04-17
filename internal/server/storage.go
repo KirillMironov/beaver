@@ -13,15 +13,15 @@ type Storage struct {
 }
 
 type authenticator interface {
-	Authenticate(username, passphrase string) (User, error)
+	Authenticate(Credentials) (User, error)
 }
 
 func NewStorage(authenticator authenticator) *Storage {
 	return &Storage{authenticator: authenticator}
 }
 
-func (s Storage) Upload(username, passphrase string, filename string, src io.Reader) error {
-	user, err := s.authenticator.Authenticate(username, passphrase)
+func (s Storage) Upload(credential Credentials, filename string, src io.Reader) error {
+	user, err := s.authenticator.Authenticate(credential)
 	if err != nil {
 		return err
 	}
@@ -39,8 +39,8 @@ func (s Storage) Upload(username, passphrase string, filename string, src io.Rea
 	return encrypter.Encrypt(user.Key())
 }
 
-func (s Storage) Download(username, passphrase, filename string, dst io.Writer) error {
-	user, err := s.authenticator.Authenticate(username, passphrase)
+func (s Storage) Download(credential Credentials, filename string, dst io.Writer) error {
+	user, err := s.authenticator.Authenticate(credential)
 	if err != nil {
 		return err
 	}
@@ -58,8 +58,8 @@ func (s Storage) Download(username, passphrase, filename string, dst io.Writer) 
 	return decrypter.Decrypt(user.Key())
 }
 
-func (s Storage) List(username, passphrase string) ([]string, error) {
-	user, err := s.authenticator.Authenticate(username, passphrase)
+func (s Storage) List(credential Credentials) ([]string, error) {
+	user, err := s.authenticator.Authenticate(credential)
 	if err != nil {
 		return nil, err
 	}
