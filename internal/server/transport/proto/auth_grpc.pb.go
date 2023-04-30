@@ -22,7 +22,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type AuthenticatorClient interface {
-	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*Response, error)
+	AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*Token, error)
+	Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*Token, error)
 }
 
 type authenticatorClient struct {
@@ -33,9 +34,18 @@ func NewAuthenticatorClient(cc grpc.ClientConnInterface) AuthenticatorClient {
 	return &authenticatorClient{cc}
 }
 
-func (c *authenticatorClient) AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
+func (c *authenticatorClient) AddUser(ctx context.Context, in *AddUserRequest, opts ...grpc.CallOption) (*Token, error) {
+	out := new(Token)
 	err := c.cc.Invoke(ctx, "/proto.Authenticator/AddUser", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authenticatorClient) Authenticate(ctx context.Context, in *AuthenticateRequest, opts ...grpc.CallOption) (*Token, error) {
+	out := new(Token)
+	err := c.cc.Invoke(ctx, "/proto.Authenticator/Authenticate", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -46,15 +56,19 @@ func (c *authenticatorClient) AddUser(ctx context.Context, in *AddUserRequest, o
 // All implementations should embed UnimplementedAuthenticatorServer
 // for forward compatibility
 type AuthenticatorServer interface {
-	AddUser(context.Context, *AddUserRequest) (*Response, error)
+	AddUser(context.Context, *AddUserRequest) (*Token, error)
+	Authenticate(context.Context, *AuthenticateRequest) (*Token, error)
 }
 
 // UnimplementedAuthenticatorServer should be embedded to have forward compatible implementations.
 type UnimplementedAuthenticatorServer struct {
 }
 
-func (UnimplementedAuthenticatorServer) AddUser(context.Context, *AddUserRequest) (*Response, error) {
+func (UnimplementedAuthenticatorServer) AddUser(context.Context, *AddUserRequest) (*Token, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AddUser not implemented")
+}
+func (UnimplementedAuthenticatorServer) Authenticate(context.Context, *AuthenticateRequest) (*Token, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Authenticate not implemented")
 }
 
 // UnsafeAuthenticatorServer may be embedded to opt out of forward compatibility for this service.
@@ -86,6 +100,24 @@ func _Authenticator_AddUser_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Authenticator_Authenticate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AuthenticateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthenticatorServer).Authenticate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.Authenticator/Authenticate",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthenticatorServer).Authenticate(ctx, req.(*AuthenticateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Authenticator_ServiceDesc is the grpc.ServiceDesc for Authenticator service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -96,6 +128,10 @@ var Authenticator_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AddUser",
 			Handler:    _Authenticator_AddUser_Handler,
+		},
+		{
+			MethodName: "Authenticate",
+			Handler:    _Authenticator_Authenticate_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

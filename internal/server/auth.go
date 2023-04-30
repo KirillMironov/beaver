@@ -11,6 +11,7 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 
 	"github.com/KirillMironov/beaver/internal/aes"
+	"github.com/KirillMironov/beaver/internal/jwt"
 	"github.com/KirillMironov/beaver/internal/log"
 	"github.com/KirillMironov/beaver/internal/rand"
 )
@@ -25,93 +26,102 @@ var (
 	errInvalidPassphrase = errors.New("invalid passphrase")
 	errUserAlreadyExists = errors.New("user already exists")
 	errUserNotFound      = errors.New("user not found")
-	errEmptyUsername     = errors.New("username cannot be empty")
-	errEmptyPassphrase   = errors.New("passphrase cannot be empty")
+	errNotEnoughParams   = errors.New("not enough parameters")
 )
 
 type Authenticator struct {
-	dataDir string
-	logger  log.Logger
+	dataDir      string
+	logger       log.Logger
+	tokenManager jwt.TokenManager[User]
 }
 
-func NewAuthenticator(dataDir string, logger log.Logger) (*Authenticator, error) {
+func NewAuthenticator(dataDir string, logger log.Logger, tokenManager jwt.TokenManager[User]) (*Authenticator, error) {
 	authenticator := &Authenticator{
-		dataDir: dataDir,
-		logger:  logger,
+		dataDir:      dataDir,
+		logger:       logger,
+		tokenManager: tokenManager,
 	}
 
 	return authenticator, authenticator.generateMasterKeyIfNotExists()
 }
 
-func (a Authenticator) AddUser(credentials Credentials, masterKey string) (User, error) {
-	if err := credentials.Validate(); err != nil {
-		return User{}, err
+func (a Authenticator) AddUser(username, passphrase, masterKey string) (string, error) {
+	if username == "" || passphrase == "" || masterKey == "" {
+		return "", errNotEnoughParams
 	}
 
-	userDataDir := filepath.Join(a.dataDir, credentials.Username)
+	userDataDir := filepath.Join(a.dataDir, username)
 
 	if _, err := os.Stat(userDataDir); err == nil {
-		return User{}, errUserAlreadyExists
+		return "", errUserAlreadyExists
 	}
 
 	if err := a.verifyMasterKey(masterKey); err != nil {
-		return User{}, err
+		return "", err
 	}
 
-	key := deriveKey(credentials.Passphrase, credentials.Username)
+	key := deriveKey(passphrase, username)
 
 	ciphertext, err := aes.Encrypt([]byte(authMessage), key)
 	if err != nil {
-		return User{}, err
+		return "", err
 	}
 
 	if err = os.MkdirAll(userDataDir, 0700); err != nil {
-		return User{}, err
+		return "", err
 	}
 
-	if err = os.WriteFile(filepath.Join(userDataDir, "."+credentials.Username), ciphertext, 0400); err != nil {
+	if err = os.WriteFile(filepath.Join(userDataDir, "."+username), ciphertext, 0400); err != nil {
 		_ = os.Remove(userDataDir)
-		return User{}, err
+		return "", err
 	}
 
-	return User{
-		Username: credentials.Username,
+	user := User{
+		Username: username,
 		DataDir:  userDataDir,
 		key:      key,
-	}, nil
+	}
+
+	return a.tokenManager.GenerateToken(user)
 }
 
-func (a Authenticator) Authenticate(credentials Credentials) (User, error) {
-	if err := credentials.Validate(); err != nil {
-		return User{}, err
+func (a Authenticator) Authenticate(username, passphrase string) (string, error) {
+	if username == "" || passphrase == "" {
+		return "", errNotEnoughParams
 	}
 
-	userDataDir := filepath.Join(a.dataDir, credentials.Username)
+	userDataDir := filepath.Join(a.dataDir, username)
 
-	fileCiphertext, err := os.ReadFile(filepath.Join(userDataDir, "."+credentials.Username))
+	fileCiphertext, err := os.ReadFile(filepath.Join(userDataDir, "."+username))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return User{}, errUserNotFound
+			return "", errUserNotFound
 		}
-		return User{}, err
+		return "", err
 	}
 
-	key := deriveKey(credentials.Passphrase, credentials.Username)
+	key := deriveKey(passphrase, username)
 
 	plaintext, err := aes.Decrypt(fileCiphertext, key)
 	if err != nil {
-		return User{}, err
+		return "", err
 	}
 
 	if !bytes.Equal(plaintext, []byte(authMessage)) {
-		return User{}, errInvalidPassphrase
+		return "", errInvalidPassphrase
 	}
 
-	return User{
-		Username: credentials.Username,
+	user := User{
+		Username: username,
 		DataDir:  userDataDir,
 		key:      key,
-	}, nil
+	}
+
+	return a.tokenManager.GenerateToken(user)
+}
+
+func (a Authenticator) ValidateToken(token string) (User, error) {
+	return a.tokenManager.ValidateToken(token)
 }
 
 func (a Authenticator) verifyMasterKey(masterKey string) error {
@@ -188,22 +198,6 @@ func (u User) Key() []byte {
 	key := make([]byte, len(u.key))
 	copy(key, u.key)
 	return key
-}
-
-type Credentials struct {
-	Username   string
-	Passphrase string
-}
-
-func (c Credentials) Validate() error {
-	switch {
-	case c.Username == "":
-		return errEmptyUsername
-	case c.Passphrase == "":
-		return errEmptyPassphrase
-	default:
-		return nil
-	}
 }
 
 func deriveKey(passphrase, salt string) []byte {

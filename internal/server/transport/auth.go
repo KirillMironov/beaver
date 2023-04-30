@@ -17,7 +17,9 @@ type AuthenticatorService struct {
 }
 
 type Authenticator interface {
-	AddUser(credentials server.Credentials, masterKey string) (server.User, error)
+	AddUser(username, passphrase, masterKey string) (token string, err error)
+	Authenticate(username, passphrase string) (token string, err error)
+	ValidateToken(token string) (server.User, error)
 }
 
 func NewAuthenticatorService(authenticator Authenticator, logger log.Logger) *AuthenticatorService {
@@ -27,17 +29,22 @@ func NewAuthenticatorService(authenticator Authenticator, logger log.Logger) *Au
 	}
 }
 
-func (a AuthenticatorService) AddUser(_ context.Context, request *proto.AddUserRequest) (*proto.Response, error) {
-	credentials := server.Credentials{
-		Username:   request.GetUsername(),
-		Passphrase: request.GetPassphrase(),
-	}
-
-	_, err := a.authenticator.AddUser(credentials, request.GetMasterKey())
+func (a AuthenticatorService) AddUser(_ context.Context, request *proto.AddUserRequest) (*proto.Token, error) {
+	token, err := a.authenticator.AddUser(request.GetUsername(), request.GetPassphrase(), request.GetMasterKey())
 	if err != nil {
 		a.logger.Errorf("failed to add user: %v", err)
 		return nil, status.Error(codes.Internal, "")
 	}
 
-	return &proto.Response{}, nil
+	return &proto.Token{Token: token}, nil
+}
+
+func (a AuthenticatorService) Authenticate(_ context.Context, request *proto.AuthenticateRequest) (*proto.Token, error) {
+	token, err := a.authenticator.Authenticate(request.GetUsername(), request.GetPassphrase())
+	if err != nil {
+		a.logger.Errorf("failed to authenticate user: %v", err)
+		return nil, status.Error(codes.Internal, "")
+	}
+
+	return &proto.Token{Token: token}, nil
 }

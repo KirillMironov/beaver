@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -24,7 +25,7 @@ const _ = grpc.SupportPackageIsVersion7
 type StorageClient interface {
 	Upload(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (Storage_UploadClient, error)
 	Download(ctx context.Context, in *FileRequest, opts ...grpc.CallOption) (Storage_DownloadClient, error)
-	List(ctx context.Context, in *Credentials, opts ...grpc.CallOption) (*ListResponse, error)
+	List(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListResponse, error)
 }
 
 type storageClient struct {
@@ -99,7 +100,7 @@ func (x *storageDownloadClient) Recv() (*File, error) {
 	return m, nil
 }
 
-func (c *storageClient) List(ctx context.Context, in *Credentials, opts ...grpc.CallOption) (*ListResponse, error) {
+func (c *storageClient) List(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ListResponse, error) {
 	out := new(ListResponse)
 	err := c.cc.Invoke(ctx, "/proto.Storage/List", in, out, opts...)
 	if err != nil {
@@ -114,7 +115,7 @@ func (c *storageClient) List(ctx context.Context, in *Credentials, opts ...grpc.
 type StorageServer interface {
 	Upload(*FileRequest, Storage_UploadServer) error
 	Download(*FileRequest, Storage_DownloadServer) error
-	List(context.Context, *Credentials) (*ListResponse, error)
+	List(context.Context, *emptypb.Empty) (*ListResponse, error)
 }
 
 // UnimplementedStorageServer should be embedded to have forward compatible implementations.
@@ -127,7 +128,7 @@ func (UnimplementedStorageServer) Upload(*FileRequest, Storage_UploadServer) err
 func (UnimplementedStorageServer) Download(*FileRequest, Storage_DownloadServer) error {
 	return status.Errorf(codes.Unimplemented, "method Download not implemented")
 }
-func (UnimplementedStorageServer) List(context.Context, *Credentials) (*ListResponse, error) {
+func (UnimplementedStorageServer) List(context.Context, *emptypb.Empty) (*ListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
 }
 
@@ -185,7 +186,7 @@ func (x *storageDownloadServer) Send(m *File) error {
 }
 
 func _Storage_List_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Credentials)
+	in := new(emptypb.Empty)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -197,7 +198,7 @@ func _Storage_List_Handler(srv interface{}, ctx context.Context, dec func(interf
 		FullMethod: "/proto.Storage/List",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(StorageServer).List(ctx, req.(*Credentials))
+		return srv.(StorageServer).List(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }

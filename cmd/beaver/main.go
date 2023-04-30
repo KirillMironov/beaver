@@ -7,6 +7,7 @@ import (
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 
+	"github.com/KirillMironov/beaver/internal/jwt"
 	"github.com/KirillMironov/beaver/internal/log"
 	"github.com/KirillMironov/beaver/internal/server"
 	"github.com/KirillMironov/beaver/internal/server/config"
@@ -20,14 +21,19 @@ func main() {
 
 func options() fx.Option {
 	return fx.Options(
-		server.Module(),
 		fx.Provide(
 			config.Load,
+			fx.Annotate(
+				func(cfg config.Config) *jwt.Manager[server.User] {
+					return jwt.NewManager[server.User](cfg.JWT.Secret, cfg.JWT.TokenTTL)
+				},
+				fx.As(new(jwt.TokenManager[server.User])),
+			),
 			fx.Annotate(log.New, fx.As(new(log.Logger))),
 			fx.Annotate(server.NewStorage, fx.As(new(transport.Storage))),
 			fx.Annotate(
-				func(cfg config.Config, logger log.Logger) (*server.Authenticator, error) {
-					return server.NewAuthenticator(cfg.DataDir, logger)
+				func(cfg config.Config, logger log.Logger, tokenManager jwt.TokenManager[server.User]) (*server.Authenticator, error) {
+					return server.NewAuthenticator(cfg.DataDir, logger, tokenManager)
 				},
 				fx.As(new(transport.Authenticator)),
 			),

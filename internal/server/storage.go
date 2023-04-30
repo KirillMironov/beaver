@@ -8,24 +8,13 @@ import (
 	"github.com/KirillMironov/beaver/internal/aes"
 )
 
-type Storage struct {
-	authenticator authenticator
+type Storage struct{}
+
+func NewStorage() *Storage {
+	return &Storage{}
 }
 
-type authenticator interface {
-	Authenticate(Credentials) (User, error)
-}
-
-func NewStorage(authenticator authenticator) *Storage {
-	return &Storage{authenticator: authenticator}
-}
-
-func (s Storage) Upload(credential Credentials, filename string, src io.Reader) error {
-	user, err := s.authenticator.Authenticate(credential)
-	if err != nil {
-		return err
-	}
-
+func (s Storage) Upload(user User, filename string, src io.Reader) error {
 	path := filepath.Join(user.DataDir, filename)
 
 	dst, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
@@ -39,12 +28,7 @@ func (s Storage) Upload(credential Credentials, filename string, src io.Reader) 
 	return encrypter.Encrypt(user.Key())
 }
 
-func (s Storage) Download(credential Credentials, filename string, dst io.Writer) error {
-	user, err := s.authenticator.Authenticate(credential)
-	if err != nil {
-		return err
-	}
-
+func (s Storage) Download(user User, filename string, dst io.Writer) error {
 	path := filepath.Join(user.DataDir, filename)
 
 	file, err := os.Open(path)
@@ -58,12 +42,7 @@ func (s Storage) Download(credential Credentials, filename string, dst io.Writer
 	return decrypter.Decrypt(user.Key())
 }
 
-func (s Storage) List(credential Credentials) ([]string, error) {
-	user, err := s.authenticator.Authenticate(credential)
-	if err != nil {
-		return nil, err
-	}
-
+func (s Storage) List(user User) ([]string, error) {
 	dirEntries, err := os.ReadDir(user.DataDir)
 	if err != nil {
 		return nil, err

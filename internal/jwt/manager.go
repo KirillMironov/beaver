@@ -15,6 +15,11 @@ type (
 		jwt.RegisteredClaims
 	}
 
+	TokenManager[T any] interface {
+		GenerateToken(payload T) (string, error)
+		ValidateToken(tokenString string) (T, error)
+	}
+
 	Manager[T any] struct {
 		secret   []byte
 		tokenTTL time.Duration

@@ -5,7 +5,12 @@ package proto;
 option go_package = "./;proto";
 
 service Authenticator {
-  rpc AddUser(AddUserRequest) returns (Response) {}
+  rpc AddUser(AddUserRequest) returns (Token) {}
+  rpc Authenticate(AuthenticateRequest) returns (Token) {}
+}
+
+message Token {
+  string token = 1;
 }
 
 message AddUserRequest {
@@ -14,4 +19,7 @@ message AddUserRequest {
   string master_key = 3;
 }
 
-message Response {}
+message AuthenticateRequest {
+  string username = 1;
+  string passphrase = 2;
+}

@@ -2,25 +2,21 @@ syntax = "proto3";
 
 package proto;
 
+import "google/protobuf/empty.proto";
+
 option go_package = "./;proto";
 
 service Storage {
   rpc Upload(FileRequest) returns (stream File) {}
   rpc Download(FileRequest) returns (stream File) {}
-  rpc List(Credentials) returns (ListResponse) {}
+  rpc List(google.protobuf.Empty) returns (ListResponse) {}
 }
 
 message File {
   bytes chunk = 1;
 }
 
-message Credentials {
-  string username = 1;
-  string passphrase = 2;
-}
-
 message FileRequest {
-  Credentials credentials = 1;
   string filename = 2;
 }
 
