@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/caarlos0/env/v8 v8.0.0
+	github.com/golang-jwt/jwt/v5 v5.0.0
 	go.uber.org/fx v1.19.2
 	go.uber.org/zap v1.24.0
 	golang.org/x/crypto v0.7.0
